@@ -1,119 +1,220 @@
 # raft-rs
 
-A Rust implementation of the **Raft Consensus Algorithm** based on the paper [*In Search of an Understandable Consensus Algorithm (Extended Version)*](https://raft.github.io/raft.pdf) by Diego Ongaro and John Ousterhout (Stanford University).
+A Rust implementation of the **Raft Consensus Algorithm**, following the paper **In Search of an Understandable Consensus Algorithm (Extended Version)** by Diego Ongaro and John Ousterhout.
 
-This repository is designed to build a robust Raft consensus engine, which will serve as the distributed consensus layer for a fault-tolerant, replicated **Key-Value (KV) Store**.
+The goal of this project is to build a production-quality Raft implementation in idiomatic Rust while documenting the implementation process. Once the consensus layer is complete, it will power a fault-tolerant, replicated **distributed key-value store**.
 
----
-
-## 📌 Project Overview and Intent
-
-The primary goal of `raft-rs` is to implement the Raft consensus protocol in idiomatic Rust, providing:
-1. **Strong Consistency**: Linearizable state machine replication across a cluster of nodes.
-2. **High Availability**: Dynamic leader election and automatic failover upon node or network failures.
-3. **Key-Value State Machine**: An application layer built on top of Raft to process `Get`, `Put`, `Append`, and `Delete` operations.
+> **Status:** 🚧 Work in Progress
 
 ---
 
-## Current Architecture and Code Base
+## Goals
 
-The repository is modularized into three core components:
-
-* **[src/role/role.rs](file:///c:/Users/Administrator/Documents/devprojects/raft-rs/src/role/role.rs)**:
-  * Defines the node role enum: `FOLLOWER`, `CANDIDATE`, `LEADER`.
-  * Provides default state (`FOLLOWER`) and role conversion utilities (`TryFrom<&str>`).
-
-* **[src/state_module/state_module.rs](file:///c:/Users/Administrator/Documents/devprojects/raft-rs/src/state_module/state_module.rs)**:
-  * `LogEntry`: Encapsulates log index information, term numbers, and command payloads.
-  * `StateModule`: Maintains Raft state:
-    * **Persistent State**: `current_term`, `voted_for`, `log`.
-    * **Volatile State (All Servers)**: `commit_index`, `last_applied`.
-    * **Volatile State (Leaders)**: `next_index`, `match_index`.
-  * `handle_request_vote`: Processes incoming `RequestVote` RPCs, handling term synchronization and vote granting logic.
-  * `handle_append_entries`: Processes incoming `AppendEntries` RPCs, handling stale term rejection, log consistency checks (`prev_log_index` / `prev_log_term`), log truncation of conflicting entries, entry appending, and updating `commit_index`.
-
-* **[src/node/node.rs](file:///c:/Users/Administrator/Documents/devprojects/raft-rs/src/node/node.rs)**:
-  * `Node`: Serves as the top-level entity coordinating node identity (`id`), state machine module (`StateModule`), and active cluster role (`Role`).
-  * Exposes handlers `on_request_vote` and `on_append_entries` to drive node state transitions.
+- [x] Implement the Raft consensus algorithm from scratch
+- [x] Follow the Raft paper as closely as possible
+- [x] Keep the implementation modular and easy to understand
+- [ ] Build a distributed key-value store on top of Raft
+- [x] Document the implementation journey
 
 ---
 
-## Raft Paper Implementation Status
+## Project Structure
 
-Below is the implementation matrix comparing features outlined in the [Raft Paper](https://raft.github.io/raft.pdf) with what is currently built and planned:
+```text
+src/
+├── node/
+│   └── node.rs          # Top-level Raft node
+├── role/
+│   └── role.rs          # Follower, Candidate, Leader
+├── state_module/
+│   └── state_module.rs  # Core Raft state machine
+```
 
-| Raft Paper Section | Feature / Specification | Implementation Status | Code Location / Notes |
-| :--- | :--- | :---: | :--- |
-| **5.1 Raft Basics** | Node Roles (`Follower`, `Candidate`, `Leader`) & Terms | Complete | [src/role/role.rs](src/role/role.rs) |
-| **5.2 Leader Election** | `RequestVote` RPC handling & term updating | Partial | [src/state_module/state_module.rs](raft-rs/src/state_module/state_module.rs) |
-| **5.2 Leader Election** | Election Timers & Randomized Timeouts | Planned | Requires async timer tasks (`tokio`) |
-| **5.2 Leader Election** | Requesting votes & transitioning Candidate ➔ Leader | Planned | Majority vote collection logic |
-| **5.3 Log Replication** | `AppendEntries` RPC log matching & truncation | Complete | [src/state_module/state_module.rs](raft-rs/src/state_module/state_module.rs) |
-| **5.3 Log Replication** | Heartbeat dispatch from Leader | Planned | Ticker loop in Leader state |
-| **5.4 Safety** | Election Restriction (Checking Candidate's last log term/index) | Planned | Candidate log up-to-date validation in `handle_request_vote` |
-| **5.4 Safety** | Committing entries from previous terms | Planned | Leader commit index calculation |
-| **5.5/5.6 Fault Tolerance** | Persistent Storage to Disk (WAL) | Planned | Persisting `current_term`, `voted_for`, `log` |
-| **Section 7** | Log Compaction & Snapshots (`InstallSnapshot` RPC) | Planned | Snapshotting state machine state |
-| **Section 8** | Client Interaction & State Machine Application | Planned | `apply_ch` channel for committed entries |
-| **Extension** | **Key-Value Storage Engine** (`Put`, `Get`, `Delete`) | Planned | In-memory / persistent KV engine on top of Raft |
+### Node
+
+Coordinates the different parts of a Raft server.
+
+Responsibilities:
+
+- Maintaining node identity
+- Managing the current role
+- Receiving RPCs
+- Delegating protocol logic to the state module
+
+### State Module
+
+Implements the core Raft protocol.
+
+**Persistent State**
+
+- `current_term`
+- `voted_for`
+- `log`
+
+**Volatile State**
+
+- `commit_index`
+- `last_applied`
+
+**Leader State**
+
+- `next_index`
+- `match_index`
+
+Implemented RPC handlers:
+
+- `handle_request_vote`
+- `handle_append_entries`
+
+### Roles
+
+- Follower
+- Candidate
+- Leader
 
 ---
 
-## Roadmap to KV Store
+# Implementation Checklist
 
-To evolve `raft-rs` into a fully functional distributed Key-Value store, the development roadmap follows these steps:
+## Section 5.1 — Raft Basics
 
-1. **Async Runtime & Networking**:
-   - Integrate `tokio` for async timers (heartbeats, election timeouts).
-   - Implement gRPC (using `tonic`) or TCP transport for inter-node RPC communications.
+- [x] Node roles
+- [x] Current term
+- [x] Persistent log
+- [x] Commit index
+- [x] Last applied
 
-2. **Raft Election & Consensus Completion**:
-   - Implement randomized election timeout (150ms–300ms).
-   - Add election restriction validation in `handle_request_vote` (checking candidate's last log index & term).
-   - Implement leader heartbeat generation and vote collection.
+## Section 5.2 — Leader Election
 
-3. **Persistence & Storage Layer**:
-   - Save `current_term`, `voted_for`, and `log` to stable storage before responding to RPCs.
+- [x] RequestVote RPC
+- [x] Vote granting
+- [x] Term updates
+- [ ] Election timer
+- [ ] Randomized election timeout
+- [ ] Candidate election
+- [ ] Majority vote counting
+- [ ] Leader transition
 
-4. **State Machine Integration**:
-   - Create an `ApplyMsg` / `apply_ch` channel that sends committed `LogEntry` items when `commit_index > last_applied`.
+## Section 5.3 — Log Replication
 
-5. **Key-Value Store Layer**:
-   - Build a `KvStore` module (e.g. wrapping a thread-safe `HashMap<String, String>`).
-   - Parse KV commands (`Put`, `Get`, `Append`, `Delete`) stored in `LogEntry::command`.
-   - Implement client API handles for routing requests to the leader and supporting linearizable reads.
+- [x] AppendEntries RPC
+- [x] Previous log validation
+- [x] Log consistency checks
+- [x] Conflict detection
+- [x] Log truncation
+- [x] Append new entries
+- [x] Commit index updates
+- [ ] Leader heartbeats
+- [ ] Leader replication loop
+- [ ] nextIndex tracking
+- [ ] matchIndex tracking
+
+## Section 5.4 — Safety
+
+- [ ] Election restriction
+- [ ] Commit entries from current term only
+- [ ] State machine safety
+
+## Section 7 — Log Compaction
+
+- [ ] InstallSnapshot RPC
+- [ ] Snapshot creation
+- [ ] Log compaction
+
+## Persistence
+
+- [ ] Write-Ahead Log (WAL)
+- [ ] Persist current term
+- [ ] Persist voted_for
+- [ ] Persist log entries
+- [ ] Crash recovery
+
+## Networking
+
+- [ ] Tokio runtime
+- [ ] RPC transport
+- [ ] Cluster communication
+- [ ] Heartbeat scheduler
+
+## Key-Value Store
+
+- [ ] Apply committed entries
+- [ ] State machine
+- [ ] Client API
+- [ ] Put
+- [ ] Get
+- [ ] Delete
+- [ ] Append
+- [ ] Linearizable reads
 
 ---
 
-## Getting Started
+# Building
 
-### Prerequisites
-- [Rust & Cargo](https://www.rust-lang.org/tools/install) (Edition 2024 compatible compiler)
+## Prerequisites
 
-### Building & Running Tests
+- Rust (Edition 2024)
+- Cargo
 
-Clone the repository and run cargo tests:
+## Clone
+
+```bash
+git clone https://github.com/<your-username>/raft-rs.git
+cd raft-rs
+```
+
+## Build
+
 ```bash
 cargo build
+```
+
+## Test
+
+```bash
 cargo test
 ```
 
-### Basic Code Example
+---
+
+# Example
 
 ```rust
 use raft_rs::node::Node;
 
 fn main() {
-    // Instantiate node ID 1 in a 3-node cluster (peer_count = 2)
-    let mut node = Node::new(1, 2);
-    
-    // Node starts in FOLLOWER role with clean state
-    println!("Node initialized");
+    let node = Node::new(1, 3);
+
+    println!("Node initialized!");
 }
 ```
 
 ---
 
-## References
-- Diego Ongaro and John Ousterhout. [*In Search of an Understandable Consensus Algorithm (Extended Version)*](https://raft.github.io/raft.pdf).
-- Raft Website & Resources: [https://raft.github.io/](https://raft.github.io/)
+# Learning Objectives
+
+This project explores:
+
+- Distributed systems
+- Consensus algorithms
+- State machine replication
+- Leader election
+- Fault tolerance
+- Network programming
+- Rust ownership
+- Async programming with Tokio
+- Building distributed databases
+
+---
+
+# References
+
+- Diego Ongaro & John Ousterhout, *In Search of an Understandable Consensus Algorithm (Extended Version)*
+- https://raft.github.io/
+- https://raft.github.io/raft.pdf
+
+---
+
+## License
+
+MIT
