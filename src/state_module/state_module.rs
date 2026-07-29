@@ -59,7 +59,79 @@ impl StateModule {
         (self.current_term, can_vote)
     }
 
-    pub fn handle_append_entries(&mut self) -> (u8, bool) {
-        (self.current_term, false)
+    /// innvoked by leader to replicate log entries also used
+    /// as heart beat.
+    ///
+    /// handle_append_entries
+    ///
+    /// ## Arguments
+    /// `term` leader's term.
+    /// `leader_id` so followers can redirect clients.
+    /// `prev_log_index` index of log entry preceeding new ones.
+    /// `prev_log_term` term of the `prev_log_index` entry
+    /// `entries[]` log entries to store (empty for heart beat; may send more
+    ///  more than one for effieciney)
+    /// `leader_commit` leader commit index
+    pub fn handle_append_entries(
+        &mut self,
+        term: u8,
+        _leader_id: u8,
+        prev_log_index: Option<usize>,
+        prev_log_term: u8,
+        entries: Vec<LogEntry>,
+        leader_commit: usize,
+    ) -> (u8, bool) {
+        // Reject stale terms.
+        if term < self.current_term {
+            return (self.current_term, false);
+        }
+
+        // Update to newer term.
+        if term > self.current_term {
+            self.current_term = term;
+            self.voted_for = None;
+        }
+
+        // Validate previous log entry (if one exists).
+        if let Some(prev_idx) = prev_log_index {
+            if prev_idx >= self.log.len() {
+                return (self.current_term, false);
+            }
+
+            if self.log[prev_idx].term != prev_log_term {
+                return (self.current_term, false);
+            }
+        }
+
+        let insert_idx = match prev_log_index {
+            Some(idx) => idx + 1,
+            None => 0,
+        };
+
+        // Delete conflicting entries.
+        for (offset, entry) in entries.iter().enumerate() {
+            let log_idx = insert_idx + offset;
+
+            if log_idx < self.log.len() && self.log[log_idx].term != entry.term {
+                self.log.truncate(log_idx);
+                break;
+            }
+        }
+
+        // Append new entries.
+        for (offset, entry) in entries.into_iter().enumerate() {
+            let log_idx = insert_idx + offset;
+
+            if log_idx >= self.log.len() {
+                self.log.push(entry);
+            }
+        }
+
+        // Update commit index.
+        if leader_commit > self.commit_index as usize && !self.log.is_empty() {
+            self.commit_index = std::cmp::min(leader_commit, self.log.len() - 1) as u8;
+        }
+
+        (self.current_term, true)
     }
 }

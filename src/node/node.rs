@@ -1,4 +1,7 @@
-use crate::{role::Role, state_module::StateModule};
+use crate::{
+    role::Role,
+    state_module::{StateModule, state_module::LogEntry},
+};
 
 pub struct Node {
     id: u8,
@@ -21,5 +24,31 @@ impl Node {
             self.role = Role::FOLLOWER; // Fall back and reset time here
         }
         (current_term, granted)
+    }
+
+    pub fn on_append_entries(
+        &mut self,
+        term: u8,
+        leader_id: u8,
+        prev_log_index: Option<usize>,
+        prev_log_term: u8,
+        entries: Vec<LogEntry>,
+        leader_commit: usize,
+    ) -> (u8, bool) {
+        let old_term = self.state.current_term;
+        let (current_term, appended) = self.state.handle_append_entries(
+            term,
+            leader_id,
+            prev_log_index,
+            prev_log_term,
+            entries,
+            leader_commit,
+        );
+        if current_term > old_term {
+            // we heard from a vaild leader
+            self.role = Role::FOLLOWER;
+            // reset election timee here
+        }
+        (current_term, appended)
     }
 }
