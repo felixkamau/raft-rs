@@ -89,8 +89,8 @@ Implemented RPC handlers:
 - [x] RequestVote RPC
 - [x] Vote granting
 - [x] Term updates
-- [ ] Election timer
-- [ ] Randomized election timeout
+- [x] Election timer
+- [x] Randomized election timeout
 - [ ] Candidate election
 - [ ] Majority vote counting
 - [ ] Leader transition
