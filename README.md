@@ -104,7 +104,7 @@ Implemented RPC handlers:
 - [x] Log truncation
 - [x] Append new entries
 - [x] Commit index updates
-- [ ] Leader heartbeats
+- [x] Leader heartbeats
 - [ ] Leader replication loop
 - [ ] nextIndex tracking
 - [ ] matchIndex tracking
